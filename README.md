@@ -1,2 +1,2 @@
 # physynth
-Physical synth
+Experimental synthesizer aiming at simple modular physical synthesis.

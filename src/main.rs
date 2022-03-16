@@ -3,10 +3,9 @@ extern crate midir;
 
 use std::error::Error;
 use std::f32::consts::PI;
-use std::hash::Hash;
 use std::time::Duration;
 
-use egui::{RichText, Ui};
+use egui::{Ui};
 use std::ops::{Deref, DerefMut};
 
 use midir::{Ignore, MidiInput, MidiOutput};
@@ -30,11 +29,11 @@ struct Parameter {
 const ZERO: *mut f32 = std::ptr::null_mut();
 
 impl Parameter {
-    fn new(name: &'static str) -> Parameter {
+    fn new(name: &'static str, value:f32) -> Parameter {
         Parameter {
             value: ZERO,
             name: name,
-            link: Link::Value(0.0),
+            link: Link::Value(value),
         }
     }
     fn set_value(&mut self, value: f32) {
@@ -79,7 +78,9 @@ impl DerefMut for Parameter {
 struct DampedOscillatorGadget {
     frequency: Parameter,
     x: Parameter,
+    xs: Parameter,
     y: Parameter,
+    ys: Parameter,
     damp: Parameter,
     m: Parameter,
     instance_name: String,
@@ -88,11 +89,13 @@ struct DampedOscillatorGadget {
 impl DampedOscillatorGadget {
     fn new(name: &str) -> DampedOscillatorGadget {
         DampedOscillatorGadget {
-            frequency: Parameter::new("frequency"),
-            x: Parameter::new("x"),
-            y: Parameter::new("y"),
-            damp: Parameter::new("damp"),
-            m: Parameter::new("m"),
+            frequency: Parameter::new("frequency", 440.0),
+            x: Parameter::new("x", 1.0),
+            xs: Parameter::new("xs", 0.0),
+            y: Parameter::new("y", 0.0),
+            ys: Parameter::new("ys", 0.0),
+            damp: Parameter::new("damp",1.0),
+            m: Parameter::new("m",1.0),
             instance_name: name.to_owned(),
         }
     }
@@ -196,9 +199,11 @@ impl Gadget for DampedOscillatorGadget {
         match i {
             0 => &self.frequency,
             1 => &self.x,
-            2 => &self.y,
-            3 => &self.damp,
-            4 => &self.m,
+            2 => &self.xs,
+            3 => &self.y,
+            4 => &self.ys,
+            5 => &self.damp,
+            6 => &self.m,
             _ => panic!("Invalid parameter number in DampedOscillatorGadget"),
         }
     }
@@ -206,22 +211,24 @@ impl Gadget for DampedOscillatorGadget {
         match i {
             0 => &mut self.frequency,
             1 => &mut self.x,
-            2 => &mut self.y,
-            3 => &mut self.damp,
-            4 => &mut self.m,
+            2 => &mut self.xs,
+            3 => &mut self.y,
+            4 => &mut self.ys,
+            5 => &mut self.damp,
+            6 => &mut self.m,
             _ => panic!("Invalid parameter number in DampedOscillatorGadget"),
         }
     }
     fn parameter_count(&self) -> usize {
-        5
+        7
     }
     #[inline]
     fn run(&mut self) {
         let m = if (*self.m > 0.0) { *self.m } else { 1.0 };
         let omega = 2.0 * PI * *self.frequency;
         let k = m * omega * omega;
-        *self.y += -(k * *self.x + *self.damp * *self.y) * DT / m;
-        *self.x += *self.y * DT;
+        *self.y += -(k * *self.x + *self.damp * *self.y) * DT / m + *self.ys;
+        *self.x += *self.y * DT + *self.xs;
     }
 }
 
@@ -304,7 +311,7 @@ struct OutputGadget {
 impl OutputGadget {
     fn new() -> OutputGadget {
         OutputGadget {
-            output: Parameter::new("OUT"),
+            output: Parameter::new("OUT", 0.0),
         }
     }
 }
@@ -563,7 +570,7 @@ async fn main() {
         clear_background(BLACK);
 
         egui_macroquad::ui(|egui_ctx| {
-            egui::Window::new("Phi Synth").show(egui_ctx, |ui| {
+            egui::Window::new("Φ Synth").show(egui_ctx, |ui| {
                 ui.label("placeholder");
                 ui.label(check_midi().unwrap());
             });
@@ -574,7 +581,7 @@ async fn main() {
                     for (i, x) in (&mut engine).take(100000).enumerate() {
                         buffer.push(x);
                     }
-                    let mut source = rodio::buffer::SamplesBuffer::new(1, 44100, buffer);
+                    let source = rodio::buffer::SamplesBuffer::new(1, 44100, buffer);
                     stream_handle.play_raw(source).unwrap();
                 }
                 if let Some(text) = &link {
