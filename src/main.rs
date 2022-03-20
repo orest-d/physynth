@@ -89,6 +89,15 @@ async fn main() {
                             engine.gadget.container.len() - 1
                         ))));
                 }
+                if ui.button("Add PwOsc").clicked() {
+                    engine
+                        .gadget
+                        .container
+                        .push(Box::new(PowerOscillatorGadget::new(&format!(
+                            "PwOsc{}",
+                            engine.gadget.container.len() - 1
+                        ))));
+                }
             });
         });
         egui_macroquad::draw();
