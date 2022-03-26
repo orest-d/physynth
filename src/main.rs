@@ -3,18 +3,18 @@ extern crate midir;
 
 use std::error::Error;
 
-use egui::{Ui};
+use egui::Ui;
 
 use midir::{Ignore, MidiInput, MidiOutput};
-use rodio::{OutputStream};
+use rodio::OutputStream;
 
-pub mod gadget;
 pub mod engine;
+pub mod gadget;
 pub mod oscillators;
-use gadget::*;
+use egui::plot::{Line, Plot, Value, Values};
 use engine::*;
+use gadget::*;
 use oscillators::*;
-
 
 fn window_conf() -> Conf {
     Conf {
@@ -55,6 +55,7 @@ async fn main() {
     let mut engine = Engine::new(container);
     engine.bind();
     let mut link: Option<String> = None;
+    let mut buffer = Vec::with_capacity(100000);
 
     loop {
         clear_background(BLACK);
@@ -67,11 +68,11 @@ async fn main() {
             egui::Window::new("Synth").show(egui_ctx, |ui| {
                 if ui.button("Play").clicked() {
                     (&mut engine).bind();
-                    let mut buffer = Vec::with_capacity(100000);
+                    (&mut buffer).clear();
                     for x in (&mut engine).take(100000) {
-                        buffer.push(x);
+                        (&mut buffer).push(x);
                     }
-                    let source = rodio::buffer::SamplesBuffer::new(1, 44100, buffer);
+                    let source = rodio::buffer::SamplesBuffer::new(1, 44100, buffer.as_slice());
                     stream_handle.play_raw(source).unwrap();
                 }
                 if let Some(text) = &link {
@@ -99,6 +100,22 @@ async fn main() {
                         ))));
                 }
             });
+            egui::Window::new("Plot").show(egui_ctx, |ui| {
+                if !(&buffer).is_empty() {
+                    let line = Line::new(Values::from_values_iter(
+                        (&buffer)
+                            .iter().take(1000)
+                            .enumerate()
+                            .map(|(i, &x)| Value::new((i as f64) * (DT as f64), x as f64)),
+                    ));
+                    
+                    Plot::new("my_plot")
+                        .view_aspect(2.0)
+                        .show(ui, |plot_ui| plot_ui.line(line));
+                        
+                }
+            });
+            
         });
         egui_macroquad::draw();
         next_frame().await
@@ -111,13 +128,13 @@ mod test {
 
     #[test]
     fn test_unbound() {
-        let p = Parameter::new("test",0.0);
+        let p = Parameter::new("test", 0.0);
         assert!(p.is_unbound());
     }
     #[test]
     fn test_bind_parameter() {
         let mut buffer: f32 = 123.0;
-        let mut p = Parameter::new("test",0.0);
+        let mut p = Parameter::new("test", 0.0);
         p.bind(&mut buffer);
         assert_eq!(*p, 123.0);
         *p = 456.0;
