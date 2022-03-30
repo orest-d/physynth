@@ -9,7 +9,6 @@ pub struct DampedOscillatorGadget {
     y: Parameter,
     ys: Parameter,
     damp: Parameter,
-    m: Parameter,
     instance_name: String,
 }
 
@@ -22,7 +21,6 @@ impl DampedOscillatorGadget {
             y: Parameter::new("y", 0.0),
             ys: Parameter::new("ys", 0.0),
             damp: Parameter::new("damp",1.0),
-            m: Parameter::new("m",1.0),
             instance_name: name.to_owned(),
         }
     }
@@ -51,7 +49,6 @@ impl Gadget for DampedOscillatorGadget {
             3 => &self.y,
             4 => &self.ys,
             5 => &self.damp,
-            6 => &self.m,
             _ => panic!("Invalid parameter number in DampedOscillatorGadget"),
         }
     }
@@ -63,20 +60,17 @@ impl Gadget for DampedOscillatorGadget {
             3 => &mut self.y,
             4 => &mut self.ys,
             5 => &mut self.damp,
-            6 => &mut self.m,
             _ => panic!("Invalid parameter number in DampedOscillatorGadget"),
         }
     }
     fn parameter_count(&self) -> usize {
-        7
+        6
     }
     #[inline]
     fn run(&mut self) {
-        let m = if *self.m > 0.0 { *self.m } else { 1.0 };
         let omega = 2.0 * PI * *self.frequency;
-        let k = m * omega * omega;
-        *self.y += -(k * *self.x + *self.damp * *self.y) * DT / m + *self.ys;
-        *self.x += *self.y * DT + *self.xs;
+        *self.x += *self.y * omega * DT + *self.ys * DT;
+        *self.y += -(*self.x + 2.0* *self.damp * *self.y) * omega * DT + *self.xs*DT;
     }
 }
 
@@ -84,12 +78,11 @@ pub struct PowerOscillatorGadget {
     frequency: Parameter,
     x: Parameter,
     xs: Parameter,
-    pwx: Parameter,
     y: Parameter,
     ys: Parameter,
-    pwy: Parameter,
     damp: Parameter,
-    m: Parameter,
+    power: Parameter,
+    alpha: Parameter,
     instance_name: String,
 }
 
@@ -99,21 +92,12 @@ impl PowerOscillatorGadget {
             frequency: Parameter::new("frequency", 440.0),
             x: Parameter::new("x", 1.0),
             xs: Parameter::new("xs", 0.0),
-            pwx: Parameter::new("pwx", 0.0),
             y: Parameter::new("y", 0.0),
             ys: Parameter::new("ys", 0.0),
-            pwy: Parameter::new("pwy", 0.0),
             damp: Parameter::new("damp",1.0),
-            m: Parameter::new("m",1.0),
+            power: Parameter::new("power", 0.0),
+            alpha: Parameter::new("alpha", 0.0),
             instance_name: name.to_owned(),
-        }
-    }
-    fn power(x:f32, p:f32)->f32{
-        if x.abs()<1e-5{
-            x
-        }
-        else{
-            x*x.abs().powf(p)
         }
     }
 }
@@ -138,12 +122,11 @@ impl Gadget for PowerOscillatorGadget {
             0 => &self.frequency,
             1 => &self.x,
             2 => &self.xs,
-            3 => &self.pwx,
-            4 => &self.y,
-            5 => &self.ys,
-            6 => &self.pwy,
-            7 => &self.damp,
-            8 => &self.m,
+            3 => &self.y,
+            4 => &self.ys,
+            5 => &self.damp,
+            6 => &self.power,
+            7 => &self.alpha,
             _ => panic!("Invalid parameter number in PowerOscillatorGadget"),
         }
     }
@@ -152,25 +135,33 @@ impl Gadget for PowerOscillatorGadget {
             0 => &mut self.frequency,
             1 => &mut self.x,
             2 => &mut self.xs,
-            3 => &mut self.pwx,
-            4 => &mut self.y,
-            5 => &mut self.ys,
-            6 => &mut self.pwy,
-            7 => &mut self.damp,
-            8 => &mut self.m,
+            3 => &mut self.y,
+            4 => &mut self.ys,
+            5 => &mut self.damp,
+            6 => &mut self.power,
+            7 => &mut self.alpha,
             _ => panic!("Invalid parameter number in PowerOscillatorGadget"),
         }
     }
     fn parameter_count(&self) -> usize {
-        9
+        8
     }
 
     #[inline]
     fn run(&mut self) {
-        let m = if *self.m > 0.0 { *self.m } else { 1.0 };
         let omega = 2.0 * PI * *self.frequency;
-        let k = m * omega * omega;
-        *self.y += -(k * PowerOscillatorGadget::power(*self.x,*self.pwx) + *self.damp * PowerOscillatorGadget::power(*self.y,*self.pwy)) * DT / m + *self.ys;
-        *self.x += *self.y * DT + *self.xs;
+        let ca = (*self.alpha * PI).cos();
+        let sa = (*self.alpha * PI).sin();
+        let wx = *self.x * ca +*self.y * sa;
+        let wy = *self.y * ca -*self.x * sa;
+        let pwx = wx.powf(*self.power).abs()*wx;
+        let pwy = wy.powf(*self.power).abs()*wy;
+        let n = (pwx*pwx + pwy*pwy).sqrt().max(0.01);
+        let gx = pwx*ca/n - pwy*sa/n;
+        let gy = pwx*sa/n + pwy*ca/n;
+
+
+        *self.x += gy * omega * DT + *self.ys * DT;
+        *self.y += -(gx + 2.0* *self.damp * *self.y) * omega * DT + *self.xs*DT;
     }
 }

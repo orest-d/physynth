@@ -3,18 +3,18 @@ extern crate midir;
 
 use std::error::Error;
 
-use egui::Ui;
-
 use midir::{Ignore, MidiInput, MidiOutput};
 use rodio::OutputStream;
 
 pub mod engine;
 pub mod gadget;
 pub mod oscillators;
+pub mod transformations;
 use egui::plot::{Line, Plot, Value, Values};
 use engine::*;
 use gadget::*;
 use oscillators::*;
+use transformations::*;
 
 fn window_conf() -> Conf {
     Conf {
@@ -99,12 +99,39 @@ async fn main() {
                             engine.gadget.container.len() - 1
                         ))));
                 }
+                if ui.button("Add Abs").clicked() {
+                    engine
+                        .gadget
+                        .container
+                        .push(Box::new(AbsGadget::new(&format!(
+                            "ABS{}",
+                            engine.gadget.container.len() - 1
+                        ))));
+                }
+                if ui.button("Add DAbs").clicked() {
+                    engine
+                        .gadget
+                        .container
+                        .push(Box::new(DoubleAbsGadget::new(&format!(
+                            "DABS{}",
+                            engine.gadget.container.len() - 1
+                        ))));
+                }
+                if ui.button("Add A/P").clicked() {
+                    engine
+                        .gadget
+                        .container
+                        .push(Box::new(AmplitudePhaseGadget::new(&format!(
+                            "AP{}",
+                            engine.gadget.container.len() - 1
+                        ))));
+                }
             });
             egui::Window::new("Plot").show(egui_ctx, |ui| {
                 if !(&buffer).is_empty() {
                     let line = Line::new(Values::from_values_iter(
                         (&buffer)
-                            .iter().take(1000)
+                            .iter().take(5000)
                             .enumerate()
                             .map(|(i, &x)| Value::new((i as f64) * (DT as f64), x as f64)),
                     ));
